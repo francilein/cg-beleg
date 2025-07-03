@@ -81,7 +81,7 @@ int main() {
     Camera cam({0, 0, -5}, {0, 0, 1}, 2.0f, 2.0f, w, h);
     Image img(w, h);
 
-    auto scene = load_obj("scenes/car_model.obj", {180, 180, 255});
+    auto scene = load_obj("scenes/twisted_torus_no_numpy.obj", {180, 180, 255});
     Light light = {{0, 2, -2}, {255, 255, 255}};
 
     std::cout << "Rendering started...\n";

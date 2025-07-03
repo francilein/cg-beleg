@@ -36,8 +36,7 @@ def write_obj_no_numpy(filename, vertices, faces):
             f.write(f"f {face[0]} {face[1]} {face[2]}\n")
 
 # Erzeuge Datei ohne NumPy
-obj_path = "/Users/francalenz/Desktop/cg-beleg/output/twisted_torus_no_numpy.obj"
-
+obj_path = "/mnt/data/twisted_torus_no_numpy.obj"
 vertices, faces = generate_twisted_torus_no_numpy()
 write_obj_no_numpy(obj_path, vertices, faces)
 
