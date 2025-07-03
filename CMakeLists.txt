@@ -1,0 +1,8 @@
+# Ein einfaches Quadrat aus zwei Dreiecken
+v -1.0 -1.0 2.0
+v  1.0 -1.0 2.0
+v  1.0  1.0 2.0
+v -1.0  1.0 2.0
+
+f 1 2 4
+f 2 3 4
