@@ -19,47 +19,36 @@ void BoundingBox::expand(const BoundingBox& box) {
 }
 
 bool BoundingBox::intersect(const Ray& ray, float& t_min, float& t_max) const {
-    float t1, t2;
-    t_min = -1e30f;
+    t_min = 0.0f;
     t_max = 1e30f;
     
-    // X-Achse
-    if (std::abs(ray.direction.x) > 1e-8f) {
-        t1 = (min.x - ray.origin.x) / ray.direction.x;
-        t2 = (max.x - ray.origin.x) / ray.direction.x;
-        if (t1 > t2) std::swap(t1, t2);
-        t_min = std::max(t_min, t1);
-        t_max = std::min(t_max, t2);
-        if (t_min > t_max) return false;
-    } else if (ray.origin.x < min.x || ray.origin.x > max.x) {
-        return false;
+    // Teste alle drei Achsen
+    for (int i = 0; i < 3; i++) {
+        float ray_origin = (i == 0) ? ray.origin.x : (i == 1) ? ray.origin.y : ray.origin.z;
+        float ray_dir = (i == 0) ? ray.direction.x : (i == 1) ? ray.direction.y : ray.direction.z;
+        float box_min = (i == 0) ? min.x : (i == 1) ? min.y : min.z;
+        float box_max = (i == 0) ? max.x : (i == 1) ? max.y : max.z;
+        
+        if (std::abs(ray_dir) < 1e-8f) {
+            // Strahl ist parallel zur Achse
+            if (ray_origin < box_min || ray_origin > box_max) {
+                return false;
+            }
+        } else {
+            // Berechne Schnittpunkte
+            float t1 = (box_min - ray_origin) / ray_dir;
+            float t2 = (box_max - ray_origin) / ray_dir;
+            
+            if (t1 > t2) std::swap(t1, t2);
+            
+            t_min = std::max(t_min, t1);
+            t_max = std::min(t_max, t2);
+            
+            if (t_min > t_max) return false;
+        }
     }
     
-    // Y-Achse
-    if (std::abs(ray.direction.y) > 1e-8f) {
-        t1 = (min.y - ray.origin.y) / ray.direction.y;
-        t2 = (max.y - ray.origin.y) / ray.direction.y;
-        if (t1 > t2) std::swap(t1, t2);
-        t_min = std::max(t_min, t1);
-        t_max = std::min(t_max, t2);
-        if (t_min > t_max) return false;
-    } else if (ray.origin.y < min.y || ray.origin.y > max.y) {
-        return false;
-    }
-    
-    // Z-Achse
-    if (std::abs(ray.direction.z) > 1e-8f) {
-        t1 = (min.z - ray.origin.z) / ray.direction.z;
-        t2 = (max.z - ray.origin.z) / ray.direction.z;
-        if (t1 > t2) std::swap(t1, t2);
-        t_min = std::max(t_min, t1);
-        t_max = std::min(t_max, t2);
-        if (t_min > t_max) return false;
-    } else if (ray.origin.z < min.z || ray.origin.z > max.z) {
-        return false;
-    }
-    
-    return t_max > 0;
+    return t_max > 0.001f; // Mindest-Distanz
 }
 
 float BoundingBox::surface_area() const {
@@ -76,7 +65,8 @@ int BoundingBox::longest_axis() const {
 
 // KDTree Implementation
 KDTree::KDTree(int max_depth, int max_triangles_per_leaf) 
-    : max_depth(max_depth), max_triangles_per_leaf(max_triangles_per_leaf) {
+    : max_depth(std::min(max_depth, 15)), max_triangles_per_leaf(std::max(max_triangles_per_leaf, 20)) {
+    // Begrenze die Parameter für große Modelle
 }
 
 void KDTree::build(const std::vector<Triangle>& triangles) {
@@ -102,10 +92,27 @@ void KDTree::build(const std::vector<Triangle>& triangles) {
 }
 
 void KDTree::build_recursive(KDNode* node, std::vector<const Triangle*>& triangles, int depth) {
-    // Stopp-Kriterien
-    if (depth >= max_depth || triangles.size() <= max_triangles_per_leaf) {
+    // Debugging-Ausgabe
+    if (depth == 0) {
+        std::cout << "Starte KD-Tree Aufbau mit " << triangles.size() << " Dreiecken\n";
+        if (triangles.size() > 100000) {
+            std::cout << "Warnung: Sehr große Szene! Verwende konservative Einstellungen.\n";
+        }
+    }
+    
+    // Stopp-Kriterien - konservativer für große Szenen
+    int effective_max_triangles = triangles.size() > 100000 ? 100 : max_triangles_per_leaf;
+    int effective_max_depth = triangles.size() > 100000 ? 10 : max_depth;
+    
+    if (depth >= effective_max_depth || triangles.size() <= effective_max_triangles) {
         node->is_leaf = true;
         node->triangles = triangles;
+        return;
+    }
+    
+    // Null-Pointer Check
+    if (triangles.empty()) {
+        node->is_leaf = true;
         return;
     }
     
@@ -121,6 +128,11 @@ void KDTree::build_recursive(KDNode* node, std::vector<const Triangle*>& triangl
         float max_coord = (axis == 0) ? node->bbox.max.x : 
                          (axis == 1) ? node->bbox.max.y : node->bbox.max.z;
         
+        // Division durch Null vermeiden
+        if (std::abs(max_coord - min_coord) < 1e-8f) {
+            continue;
+        }
+        
         for (int i = 1; i < 4; i++) {
             float pos = min_coord + (max_coord - min_coord) * i / 4.0f;
             float cost = evaluate_split(triangles, axis, pos);
@@ -133,18 +145,29 @@ void KDTree::build_recursive(KDNode* node, std::vector<const Triangle*>& triangl
         }
     }
     
-    // Dreiecke aufteilen
+    // Dreiecke aufteilen - Dreiecke können in beiden Hälften sein!
     std::vector<const Triangle*> left_triangles, right_triangles;
     
     for (const Triangle* tri : triangles) {
-        BoundingBox tri_bbox = compute_triangle_bbox(*tri);
-        float center = (best_axis == 0) ? (tri_bbox.min.x + tri_bbox.max.x) * 0.5f :
-                      (best_axis == 1) ? (tri_bbox.min.y + tri_bbox.max.y) * 0.5f :
-                                         (tri_bbox.min.z + tri_bbox.max.z) * 0.5f;
+        if (!tri) continue; // Null-Pointer Check
         
-        if (center < best_pos) {
+        BoundingBox tri_bbox = compute_triangle_bbox(*tri);
+        
+        // Prüfe, ob das Dreieck die linke Hälfte überlappt
+        bool overlaps_left = (best_axis == 0) ? (tri_bbox.min.x < best_pos) :
+                            (best_axis == 1) ? (tri_bbox.min.y < best_pos) :
+                                               (tri_bbox.min.z < best_pos);
+        
+        // Prüfe, ob das Dreieck die rechte Hälfte überlappt
+        bool overlaps_right = (best_axis == 0) ? (tri_bbox.max.x > best_pos) :
+                             (best_axis == 1) ? (tri_bbox.max.y > best_pos) :
+                                                (tri_bbox.max.z > best_pos);
+        
+        // Dreieck in beide Hälften einfügen, wenn es beide überlappt
+        if (overlaps_left) {
             left_triangles.push_back(tri);
-        } else {
+        }
+        if (overlaps_right) {
             right_triangles.push_back(tri);
         }
     }
@@ -156,13 +179,29 @@ void KDTree::build_recursive(KDNode* node, std::vector<const Triangle*>& triangl
         return;
     }
     
+    // Memory-Check - viel konservativer
+    if (left_triangles.size() > 50000 || right_triangles.size() > 50000) {
+        std::cout << "Warnung: Sehr große Teilung bei Tiefe " << depth << "\n";
+        std::cout << "Links: " << left_triangles.size() << ", Rechts: " << right_triangles.size() << "\n";
+        node->is_leaf = true;
+        node->triangles = triangles;
+        return;
+    }
+    
     // Kindknoten erstellen
     node->is_leaf = false;
     node->axis = best_axis;
     node->split_pos = best_pos;
     
-    node->left = std::make_unique<KDNode>();
-    node->right = std::make_unique<KDNode>();
+    try {
+        node->left = std::make_unique<KDNode>();
+        node->right = std::make_unique<KDNode>();
+    } catch (const std::bad_alloc& e) {
+        std::cout << "Memory-Fehler beim Erstellen der Kindknoten\n";
+        node->is_leaf = true;
+        node->triangles = triangles;
+        return;
+    }
     
     // Bounding Boxes für Kindknoten berechnen
     node->left->bbox = node->bbox;
@@ -196,6 +235,15 @@ BoundingBox KDTree::compute_bbox(const std::vector<const Triangle*>& triangles) 
 
 BoundingBox KDTree::compute_triangle_bbox(const Triangle& tri) const {
     BoundingBox bbox;
+    
+    // Prüfe auf gültige Werte
+    if (std::isnan(tri.v0.x) || std::isnan(tri.v0.y) || std::isnan(tri.v0.z) ||
+        std::isnan(tri.v1.x) || std::isnan(tri.v1.y) || std::isnan(tri.v1.z) ||
+        std::isnan(tri.v2.x) || std::isnan(tri.v2.y) || std::isnan(tri.v2.z)) {
+        std::cout << "Warnung: NaN-Werte im Dreieck gefunden!\n";
+        return bbox;
+    }
+    
     bbox.expand(tri.v0);
     bbox.expand(tri.v1);
     bbox.expand(tri.v2);
@@ -203,23 +251,36 @@ BoundingBox KDTree::compute_triangle_bbox(const Triangle& tri) const {
 }
 
 float KDTree::evaluate_split(const std::vector<const Triangle*>& triangles, int axis, float pos) const {
+    // Null-Check
+    if (triangles.empty()) return 1e30f;
+    
     int left_count = 0, right_count = 0;
+    int overlap_count = 0;
     
     for (const Triangle* tri : triangles) {
-        BoundingBox tri_bbox = compute_triangle_bbox(*tri);
-        float center = (axis == 0) ? (tri_bbox.min.x + tri_bbox.max.x) * 0.5f :
-                      (axis == 1) ? (tri_bbox.min.y + tri_bbox.max.y) * 0.5f :
-                                     (tri_bbox.min.z + tri_bbox.max.z) * 0.5f;
+        if (!tri) continue; // Null-Pointer Check
         
-        if (center < pos) {
-            left_count++;
-        } else {
-            right_count++;
-        }
+        BoundingBox tri_bbox = compute_triangle_bbox(*tri);
+        
+        // Prüfe Überlappung mit beiden Seiten
+        bool overlaps_left = (axis == 0) ? (tri_bbox.min.x < pos) :
+                            (axis == 1) ? (tri_bbox.min.y < pos) :
+                                          (tri_bbox.min.z < pos);
+        
+        bool overlaps_right = (axis == 0) ? (tri_bbox.max.x > pos) :
+                             (axis == 1) ? (tri_bbox.max.y > pos) :
+                                           (tri_bbox.max.z > pos);
+        
+        if (overlaps_left) left_count++;
+        if (overlaps_right) right_count++;
+        if (overlaps_left && overlaps_right) overlap_count++;
     }
     
-    // Einfache Kostenfunktion: Anzahl der Dreiecke pro Seite
-    return left_count + right_count;
+    // Vermeide schlechte Teilungen
+    if (left_count == 0 || right_count == 0) return 1e30f;
+    
+    // Kosten basierend auf Anzahl der Dreiecke + Überlappungsstrafe
+    return left_count + right_count + overlap_count * 2.0f;
 }
 
 bool KDTree::intersect(const Ray& ray, float& t, const Triangle*& hit_triangle) const {
@@ -258,10 +319,11 @@ bool KDTree::intersect_recursive(const KDNode* node, const Ray& ray, float& min_
         }
     } else {
         // Innerer Knoten: Beide Kinder testen
-        if (intersect_recursive(node->left.get(), ray, min_t, hit_triangle)) {
+        // Vereinfachte Traversierung - teste beide Kinder
+        if (node->left && intersect_recursive(node->left.get(), ray, min_t, hit_triangle)) {
             hit = true;
         }
-        if (intersect_recursive(node->right.get(), ray, min_t, hit_triangle)) {
+        if (node->right && intersect_recursive(node->right.get(), ray, min_t, hit_triangle)) {
             hit = true;
         }
     }
@@ -274,20 +336,24 @@ void KDTree::print_stats() const {
     
     int leaf_count = 0;
     int total_triangles = 0;
-    print_stats_recursive(root.get(), 0, leaf_count, total_triangles);
+    int max_depth = 0;
+    print_stats_recursive(root.get(), 0, leaf_count, total_triangles, max_depth);
     
     std::cout << "KD-Tree Statistics:\n";
     std::cout << "  Leaf nodes: " << leaf_count << "\n";
     std::cout << "  Total triangles in leaves: " << total_triangles << "\n";
     std::cout << "  Average triangles per leaf: " << (float)total_triangles / leaf_count << "\n";
+    std::cout << "  Maximum depth: " << max_depth << "\n";
 }
 
-void KDTree::print_stats_recursive(const KDNode* node, int depth, int& leaf_count, int& total_triangles) const {
+void KDTree::print_stats_recursive(const KDNode* node, int depth, int& leaf_count, int& total_triangles, int& max_depth) const {
+    max_depth = std::max(max_depth, depth);
+    
     if (node->is_leaf) {
         leaf_count++;
         total_triangles += node->triangles.size();
     } else {
-        if (node->left) print_stats_recursive(node->left.get(), depth + 1, leaf_count, total_triangles);
-        if (node->right) print_stats_recursive(node->right.get(), depth + 1, leaf_count, total_triangles);
+        if (node->left) print_stats_recursive(node->left.get(), depth + 1, leaf_count, total_triangles, max_depth);
+        if (node->right) print_stats_recursive(node->right.get(), depth + 1, leaf_count, total_triangles, max_depth);
     }
 }

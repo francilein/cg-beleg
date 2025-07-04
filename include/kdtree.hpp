@@ -44,5 +44,5 @@ public:
     void build(const std::vector<Triangle>& triangles);
     bool intersect(const Ray& ray, float& t, const Triangle*& hit_triangle) const;
     void print_stats() const;
-    void print_stats_recursive(const KDNode* node, int depth, int& leaf_count, int& total_triangles) const;
+    void print_stats_recursive(const KDNode* node, int depth, int& leaf_count, int& total_triangles, int& max_depth) const;
 };
