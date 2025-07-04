@@ -15,7 +15,7 @@ int main() {
     const int height = 1920;
     
     // Szene laden
-    auto scene = load_obj("scenes/twisted_torus_no_numpy.obj", {180, 180, 255});
+    auto scene = load_obj("scenes/twisted_torus_no_numpy.obj", {240, 180, 255});
     
     // Bounding Box der Szene berechnen
     float min_x = 1e30f, max_x = -1e30f;
@@ -37,10 +37,10 @@ int main() {
     float center_z = (min_z + max_z) * 0.5f;
     float size = std::max({max_x - min_x, max_y - min_y, max_z - min_z});
     
-    // Kamera höher positionieren um Objekt weiter nach unten zu schieben
-    Point3 cam_pos = {center_x, center_y + size * 1.5f, center_z + size * 1.2f};
-    Vector3 cam_dir = Vector3({0.0f, -1.2f, -0.8f}).normalize(); // Steiler nach unten blicken
-    Camera cam(cam_pos, cam_dir, size * 0.5f, size * 0.5f, width, height); // Kleinerer Sichtbereich = größeres Objekt
+    // Kamera nach rechts verschieben um Objekt von rechts anzuschauen
+    Point3 cam_pos = {center_x + size * 2.0f, center_y + size * 1.5f, center_z + size * 1.2f};
+    Vector3 cam_dir = Vector3({-0.9f, -1.0f, -0.8f}).normalize(); // Nach links und unten blicken
+    Camera cam(cam_pos, cam_dir, size * 0.4f, size * 0.4f, width, height); // Kleinerer Sichtbereich = größeres Objekt
     
     // Licht näher positionieren
     Light light = {{center_x, center_y + size * 1.5f, center_z + size * 1.0f}, {255, 255, 255}};
@@ -49,7 +49,7 @@ int main() {
     std::cout << "  X: [" << min_x << ", " << max_x << "]\n";
     std::cout << "  Y: [" << min_y << ", " << max_y << "]\n";
     std::cout << "  Z: [" << min_z << ", " << max_z << "]\n";
-    std::cout << "Kamera positioniert bei (" << cam_pos.x << ", " << cam_pos.y << ", " << cam_pos.z << ") - höher für Objekt weiter unten\n";
+    std::cout << "Kamera positioniert bei (" << cam_pos.x << ", " << cam_pos.y << ", " << cam_pos.z << ") - rechts für Ansicht von rechts\n";
     std::cout << "Licht positioniert bei (" << light.position.x << ", " << light.position.y << ", " << light.position.z << ") - mittig positioniert\n";
     
     // Bild erstellen
@@ -70,15 +70,15 @@ int main() {
     renderer.render_kdtree(kdtree, cam, light, img);
     
     // Bild speichern
-    img.save_png("output_torus_lower_hq.png");
-    std::cout << "Bild mit KD-Tree gespeichert als output_torus_lower_hq.png ✅\n";
+    img.save_png("output_torus_view_from_right_hq.png");
+    std::cout << "Bild mit KD-Tree gespeichert als output_torus_view_from_right_hq.png ✅\n";
     
     // Optional: Vergleichsrendering ohne KD-Tree
     std::cout << "\nVergleichsrendering ohne KD-Tree...\n";
     Image img_normal(width, height);
     renderer.render(scene, cam, light, img_normal);
-    img_normal.save_png("output_torus_lower_hq_normal.png");
-    std::cout << "Bild ohne KD-Tree gespeichert als output_torus_lower_hq_normal.png ✅\n";
+    img_normal.save_png("output_torus_view_from_right_hq_normal.png");
+    std::cout << "Bild ohne KD-Tree gespeichert als output_torus_view_from_right_hq_normal.png ✅\n";
 
     return 0;
 }
