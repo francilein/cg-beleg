@@ -195,15 +195,3 @@ Kamera positioniert bei (5.2, 3.9, 3.12) - rechts für Ansicht von rechts
 KD-Tree Aufbauzeit: 0.034 Sekunden
 KD-Tree Renderzeit: 2.33 Sekunden
 ```
-
-## 📝 Lizenz
-
-Dieses Projekt wurde als Belegarbeit für Computer Graphics entwickelt.
-
-## 👨‍💻 Autor
-
-Entwickelt als Computer Graphics Belegarbeit mit Fokus auf Performance-Optimierung durch räumliche Datenstrukturen.
-
----
-
-**Tipp**: Für beste Ergebnisse verwenden Sie komplexe Szenen (>1000 Dreiecke) um die Vorteile der KD-Tree-Beschleunigung voll auszuschöpfen! 🚀
